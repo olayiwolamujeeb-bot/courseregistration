@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+.vite-api/
+dist/
+node_modules/
