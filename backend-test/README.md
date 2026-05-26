@@ -5,15 +5,32 @@ This folder contains the active Laravel version of the course registration syste
 ## Setup
 
 1. Copy `.env.example` to `.env`.
-2. Start MySQL in XAMPP and create a database named `course_registration`.
-3. Run:
+2. Create the SQLite database file:
 
 ```bash
-composer install
+type nul > database\database.sqlite
+```
+
+3. Install Laravel dependencies with PHP 8.3:
+
+```bash
+php C:\Users\HP\AppData\Local\Programs\Composer\composer.phar install --no-dev
 php artisan key:generate
 php artisan migrate
 php artisan serve
 ```
+
+This local setup uses SQLite by default, so you do not need MySQL just to run the API.
+
+## Optional MySQL setup
+
+If you prefer XAMPP MySQL instead of SQLite:
+
+1. Edit `.env`
+2. Set `DB_CONNECTION=mysql`
+3. Fill in `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD`
+4. Create the `course_registration` database in MySQL
+5. Run `php artisan migrate`
 
 ## App behavior
 
@@ -22,7 +39,7 @@ php artisan serve
 - `/api/students` creates and lists students
 - `/api/registrations` creates and lists registrations
 
-The frontend assets are served directly from `public/assets`, so Vite is no longer required for this project to run.
+The frontend assets are served directly from `public/assets`, so Vite is not required for the Laravel app to serve the built frontend.
 
 ## Render
 

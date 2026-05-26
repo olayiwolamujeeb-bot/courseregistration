@@ -69,8 +69,8 @@ function normalize_registration($row)
 }
 
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
-$uri = str_replace('/course-registration-api/api', '', $uri);
-$uri = str_replace('/api', '', $uri);
+$uri = preg_replace('#^/course-registration-api/api#', '', $uri) ?? $uri;
+$uri = preg_replace('#^/api#', '', $uri) ?? $uri;
 $uri = trim($uri, '/');
 $segments = $uri === '' ? [] : explode('/', $uri);
 $resource = $segments[0] ?? '';
@@ -79,6 +79,10 @@ $resourceId = $segments[1] ?? null;
 $method = $_SERVER['REQUEST_METHOD'];
 
 try {
+    if ($resource === 'health' && $method === 'GET') {
+        json_response(200, ['ok' => true]);
+    }
+
     if ($resource === 'courses') {
         if ($method === 'GET') {
             $statement = $pdo->query('SELECT * FROM courses ORDER BY id DESC');
@@ -97,6 +101,12 @@ try {
 
             if ($title === '' || $code === '' || $level === '' || $semester === '' || $type === '' || $unit <= 0) {
                 json_response(422, ['message' => 'Course payload is incomplete.']);
+            }
+
+            $duplicate = $pdo->prepare('SELECT id FROM courses WHERE code = :code');
+            $duplicate->execute([':code' => $code]);
+            if ($duplicate->fetch()) {
+                json_response(422, ['message' => 'A course with this code already exists.']);
             }
 
             $statement = $pdo->prepare('INSERT INTO courses (title, code, level, semester, unit, type) VALUES (:title, :code, :level, :semester, :unit, :type)');
@@ -131,6 +141,15 @@ try {
 
             if ($title === '' || $code === '' || $level === '' || $semester === '' || $type === '' || $unit <= 0) {
                 json_response(422, ['message' => 'Course payload is incomplete.']);
+            }
+
+            $duplicate = $pdo->prepare('SELECT id FROM courses WHERE code = :code AND id != :id');
+            $duplicate->execute([
+                ':code' => $code,
+                ':id' => (int) $resourceId,
+            ]);
+            if ($duplicate->fetch()) {
+                json_response(422, ['message' => 'A course with this code already exists.']);
             }
 
             $statement = $pdo->prepare('UPDATE courses SET title = :title, code = :code, level = :level, semester = :semester, unit = :unit, type = :type WHERE id = :id');
@@ -241,6 +260,29 @@ try {
             }
 
             $courseIds = array_values(array_map('intval', $courseIds));
+            if ($courseIds === []) {
+                json_response(422, ['message' => 'Select at least one course.']);
+            }
+
+            $studentStatement = $pdo->prepare('SELECT id FROM students WHERE id = :id');
+            $studentStatement->execute([':id' => $studentId]);
+            if (!$studentStatement->fetch()) {
+                json_response(422, ['message' => 'Student does not exist.']);
+            }
+
+            $coursePlaceholders = implode(', ', array_fill(0, count($courseIds), '?'));
+            $courseStatement = $pdo->prepare("SELECT id FROM courses WHERE id IN ({$coursePlaceholders})");
+            $courseStatement->execute($courseIds);
+            $matchedCourseIds = array_map('intval', array_column($courseStatement->fetchAll(), 'id'));
+
+            sort($matchedCourseIds);
+            $sortedCourseIds = $courseIds;
+            sort($sortedCourseIds);
+
+            if ($matchedCourseIds !== $sortedCourseIds) {
+                json_response(422, ['message' => 'One or more selected courses do not exist.']);
+            }
+
             $statement = $pdo->prepare('INSERT INTO registrations (student_id, course_ids) VALUES (:student_id, :course_ids)');
             $statement->execute([
                 ':student_id' => $studentId,

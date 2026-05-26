@@ -75,55 +75,25 @@ const errorMessage = ref('')
 const isSavingCourse = ref(false)
 const isSavingStudent = ref(false)
 const isSavingRegistration = ref(false)
-const isUsingFallback = ref(false)
-let localIdCounter = 0
-
-const createLocalStudent = (student) => ({
-  id: Date.now() + (++localIdCounter),
-  name: student.name,
-  level: student.level,
-  email: student.email || '',
-  matric: student.matric || '',
-})
-
-const createLocalCourse = (course) => ({
-  id: Date.now(),
-  title: course.title,
-  code: course.code,
-  level: course.level,
-  semester: course.semester,
-  unit: Number(course.unit) || 0,
-  type: course.type,
-})
-
-const createLocalRegistration = (studentId, courseIds) => ({
-  id: Date.now(),
-  studentId,
-  courseIds: [...courseIds],
-  createdAt: new Date().toISOString(),
-})
-
-const switchToLocalMode = () => {
-  isUsingFallback.value = true
-  errorMessage.value = ''
-}
 
 onMounted(() => {
   loadInitialData()
 })
 
 const loadInitialData = async () => {
-  const data = await api.bootstrap()
-  courses.value = data.courses
-  students.value = data.students
-  registrations.value = data.registrations
+  errorMessage.value = ''
 
-  if (data.usingFallback) {
-    switchToLocalMode()
-    return
+  try {
+    const data = await api.bootstrap()
+    courses.value = data.courses
+    students.value = data.students
+    registrations.value = data.registrations
+  } catch (error) {
+    courses.value = []
+    students.value = []
+    registrations.value = []
+    errorMessage.value = error.message || 'Unable to load data from the server.'
   }
-
-  isUsingFallback.value = false
 }
 
 const handleLoginSuccess = async (payload) => {
@@ -135,33 +105,15 @@ const handleLoginSuccess = async (payload) => {
   }
 
   if (payload.role === 'student') {
-    const sessionStudent = createLocalStudent(payload.student)
-    currentStudent.value = sessionStudent
-    loggedInRole.value = 'student'
-
-    const existingStudentIndex = students.value.findIndex((student) => student.id === sessionStudent.id)
-    if (existingStudentIndex > -1) {
-      students.value.splice(existingStudentIndex, 1, sessionStudent)
-    } else {
-      students.value.unshift(sessionStudent)
-    }
-
     isSavingStudent.value = true
 
     try {
-      if (!isUsingFallback.value) {
-        const savedStudent = await api.createStudent(payload.student)
-        currentStudent.value = savedStudent
-
-        const localStudentIndex = students.value.findIndex((student) => student.id === sessionStudent.id)
-        if (localStudentIndex > -1) {
-          students.value.splice(localStudentIndex, 1, savedStudent)
-        } else {
-          students.value.unshift(savedStudent)
-        }
-      }
+      const savedStudent = await api.createStudent(payload.student)
+      currentStudent.value = savedStudent
+      loggedInRole.value = 'student'
+      students.value.unshift(savedStudent)
     } catch (error) {
-      switchToLocalMode()
+      errorMessage.value = error.message || 'Student login failed.'
     } finally {
       isSavingStudent.value = false
     }
@@ -173,15 +125,10 @@ const addCourse = async (course) => {
   errorMessage.value = ''
 
   try {
-    const savedCourse = isUsingFallback.value
-      ? createLocalCourse(course)
-      : await api.createCourse(course)
+    const savedCourse = await api.createCourse(course)
     courses.value.unshift(savedCourse)
-    errorMessage.value = ''
   } catch (error) {
-    const savedCourse = createLocalCourse(course)
-    courses.value.unshift(savedCourse)
-    switchToLocalMode()
+    errorMessage.value = error.message || 'Unable to create course.'
   } finally {
     isSavingCourse.value = false
   }
@@ -192,21 +139,14 @@ const updateCourse = async ({ id, payload }) => {
   errorMessage.value = ''
 
   try {
-    const updatedCourse = isUsingFallback.value
-      ? { id, ...payload, unit: Number(payload.unit) || 0 }
-      : await api.updateCourse(id, payload)
+    const updatedCourse = await api.updateCourse(id, payload)
     const courseIndex = courses.value.findIndex((course) => course.id === id)
 
     if (courseIndex > -1) {
       courses.value.splice(courseIndex, 1, updatedCourse)
     }
-    errorMessage.value = ''
   } catch (error) {
-    const courseIndex = courses.value.findIndex((course) => course.id === id)
-    if (courseIndex > -1) {
-      courses.value.splice(courseIndex, 1, { id, ...payload, unit: Number(payload.unit) || 0 })
-    }
-    switchToLocalMode()
+    errorMessage.value = error.message || 'Unable to update course.'
   } finally {
     isSavingCourse.value = false
   }
@@ -222,25 +162,17 @@ const saveRegistration = async (payload) => {
   errorMessage.value = ''
 
   try {
-    const savedRegistration = isUsingFallback.value
-      ? createLocalRegistration(currentStudent.value.id, courseIds)
-      : await api.createRegistration({
-          student_id: currentStudent.value.id,
-          course_ids: courseIds,
-        })
+    const savedRegistration = await api.createRegistration({
+      student_id: currentStudent.value.id,
+      course_ids: courseIds,
+    })
 
     registrations.value.unshift(savedRegistration)
-    errorMessage.value = ''
     if (typeof onSuccess === 'function') {
       onSuccess(savedRegistration)
     }
   } catch (error) {
-    const savedRegistration = createLocalRegistration(currentStudent.value.id, courseIds)
-    registrations.value.unshift(savedRegistration)
-    switchToLocalMode()
-    if (typeof onSuccess === 'function') {
-      onSuccess(savedRegistration)
-    }
+    errorMessage.value = error.message || 'Unable to save registration.'
   } finally {
     isSavingRegistration.value = false
   }
@@ -251,22 +183,14 @@ const deleteCourse = async (courseId) => {
   errorMessage.value = ''
 
   try {
-    if (!isUsingFallback.value) {
-      await api.deleteCourse(courseId)
-    }
+    await api.deleteCourse(courseId)
     courses.value = courses.value.filter((course) => course.id !== courseId)
     registrations.value = registrations.value.map((registration) => ({
       ...registration,
       courseIds: registration.courseIds.filter((id) => id !== courseId),
     }))
-    errorMessage.value = ''
   } catch (error) {
-    courses.value = courses.value.filter((course) => course.id !== courseId)
-    registrations.value = registrations.value.map((registration) => ({
-      ...registration,
-      courseIds: registration.courseIds.filter((id) => id !== courseId),
-    }))
-    switchToLocalMode()
+    errorMessage.value = error.message || 'Unable to delete course.'
   } finally {
     isSavingCourse.value = false
   }

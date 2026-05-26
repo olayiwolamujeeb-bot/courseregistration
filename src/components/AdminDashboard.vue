@@ -1,6 +1,6 @@
 <template>
   <section class="grid gap-6">
-    <div class="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-lg shadow-slate-200/60">
+    <div class="overflow-hidden rounded-32px border border-slate-200 bg-white shadow-lg shadow-slate-200/60">
       <div class="border-b border-slate-200 bg-[linear-gradient(135deg,#f8fafc,white_45%,#e0f2fe)] px-6 py-6">
         <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div class="max-w-2xl">
@@ -88,7 +88,7 @@
     </div>
 
     <div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-      <div class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/60">
+      <div class="rounded-32px border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/60">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h3 class="text-xl font-semibold text-slate-950">Courses</h3>
@@ -111,7 +111,7 @@
           </div>
         </div>
 
-        <div v-if="filteredCourses.length" class="mt-5 overflow-hidden rounded-[1.5rem] border border-slate-200">
+        <div v-if="filteredCourses.length" class="mt-5 overflow-hidden rounded-24px border border-slate-200">
           <table class="min-w-full text-left text-sm text-slate-700">
             <thead class="bg-slate-50">
               <tr>
@@ -155,7 +155,7 @@
         </p>
       </div>
 
-      <div class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/60">
+      <div class="rounded-30px border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/60">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 class="text-xl font-semibold text-slate-950">Student registrations</h3>

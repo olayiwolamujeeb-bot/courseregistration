@@ -6,12 +6,6 @@ const shouldIgnoreLocalApiBaseUrl = typeof window !== 'undefined'
 
 const API_BASE_URL = (shouldIgnoreLocalApiBaseUrl ? '/api' : rawApiBaseUrl).replace(/\/$/, '')
 
-const demoCourses = [
-  { id: 1, title: 'Physics 101', code: 'PHY101', level: '100', unit: 3, type: 'Core', semester: 'First Semester' },
-  { id: 2, title: 'Mathematics 102', code: 'MTH102', level: '100', unit: 3, type: 'Core', semester: 'Second Semester' },
-  { id: 3, title: 'Organic Chemistry', code: 'CHM201', level: '200', unit: 4, type: 'Elective', semester: 'First Semester' },
-]
-
 const DEFAULT_TIMEOUT_MS = 10000
 const LOGIN_TIMEOUT_MS = 10000
 
@@ -84,26 +78,16 @@ const request = async (path, options = {}) => {
 
 export const api = {
   async bootstrap() {
-    try {
-      const [courses, students, registrations] = await Promise.all([
-        request('/courses'),
-        request('/students', { timeoutMs: 10000 }),
-        request('/registrations', { timeoutMs: 10000 }),
-      ])
+    const [courses, students, registrations] = await Promise.all([
+      request('/courses'),
+      request('/students', { timeoutMs: 10000 }),
+      request('/registrations', { timeoutMs: 10000 }),
+    ])
 
-      return {
-        courses: courses.map(normalizeCourse),
-        students: students.map(normalizeStudent),
-        registrations: registrations.map(normalizeRegistration),
-        usingFallback: false,
-      }
-    } catch {
-      return {
-        courses: demoCourses,
-        students: [],
-        registrations: [],
-        usingFallback: true,
-      }
+    return {
+      courses: courses.map(normalizeCourse),
+      students: students.map(normalizeStudent),
+      registrations: registrations.map(normalizeRegistration),
     }
   },
 
