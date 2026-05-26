@@ -4,14 +4,14 @@
   </div>
 
   <div v-else class="min-h-screen bg-slate-50 text-slate-900">
-    <div class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-      <header class="flex flex-col gap-6 rounded-3xl bg-white/90 p-6 shadow-lg shadow-slate-200/80 backdrop-blur-xl md:flex-row md:items-center md:justify-between">
+    <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+      <header class="flex flex-col gap-5 rounded-[2rem] bg-white/90 p-5 shadow-lg shadow-slate-200/80 backdrop-blur-xl md:flex-row md:items-center md:justify-between md:p-6">
         <div>
           <p class="text-sm uppercase tracking-[0.3em] text-sky-600">Course Registration</p>
-          <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Course Registration System</h1>
+          <h1 class="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl md:text-4xl">Course Registration System</h1>
         </div>
 
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <p class="text-sm text-slate-700">
             Signed in as
             <span class="font-semibold text-slate-950">
@@ -20,7 +20,7 @@
           </p>
           <button
             type="button"
-            class="rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-300"
+            class="w-full rounded-full bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-300 sm:w-auto"
             @click="logout"
           >
             Logout
@@ -28,11 +28,7 @@
         </div>
       </header>
 
-      <main class="mt-10">
-        <div v-if="notice" class="mb-6 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
-          {{ notice }}
-        </div>
-
+      <main class="mt-6 sm:mt-8 lg:mt-10">
         <div v-if="errorMessage" class="mb-6 rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
           {{ errorMessage }}
         </div>
@@ -68,14 +64,13 @@ import { onMounted, ref } from 'vue'
 import AdminDashboard from './components/AdminDashboard.vue'
 import LoginCard from './components/LoginCard.vue'
 import StudentPage from './components/StudentPage.vue'
-import { api, API_BASE_URL } from './services/api'
+import { api } from './services/api'
 
 const loggedInRole = ref(null)
 const currentStudent = ref(null)
 const courses = ref([])
 const students = ref([])
 const registrations = ref([])
-const notice = ref('')
 const errorMessage = ref('')
 const isSavingCourse = ref(false)
 const isSavingStudent = ref(false)
@@ -108,9 +103,8 @@ const createLocalRegistration = (studentId, courseIds) => ({
   createdAt: new Date().toISOString(),
 })
 
-const switchToLocalMode = (message) => {
+const switchToLocalMode = () => {
   isUsingFallback.value = true
-  notice.value = message || `API is not reachable at ${API_BASE_URL}. The app is continuing in local mode.`
   errorMessage.value = ''
 }
 
@@ -125,12 +119,11 @@ const loadInitialData = async () => {
   registrations.value = data.registrations
 
   if (data.usingFallback) {
-    switchToLocalMode(`API is not reachable at ${API_BASE_URL}. The UI is loaded with local demo data until the backend is connected.`)
+    switchToLocalMode()
     return
   }
 
   isUsingFallback.value = false
-  notice.value = ''
 }
 
 const handleLoginSuccess = async (payload) => {
@@ -168,7 +161,7 @@ const handleLoginSuccess = async (payload) => {
         }
       }
     } catch (error) {
-      switchToLocalMode(`API is not reachable at ${API_BASE_URL}. Student login is continuing in local mode.`)
+      switchToLocalMode()
     } finally {
       isSavingStudent.value = false
     }
@@ -188,7 +181,7 @@ const addCourse = async (course) => {
   } catch (error) {
     const savedCourse = createLocalCourse(course)
     courses.value.unshift(savedCourse)
-    switchToLocalMode(`API is not reachable at ${API_BASE_URL}. Course changes are being saved locally.`)
+    switchToLocalMode()
   } finally {
     isSavingCourse.value = false
   }
@@ -213,7 +206,7 @@ const updateCourse = async ({ id, payload }) => {
     if (courseIndex > -1) {
       courses.value.splice(courseIndex, 1, { id, ...payload, unit: Number(payload.unit) || 0 })
     }
-    switchToLocalMode(`API is not reachable at ${API_BASE_URL}. Course updates are being saved locally.`)
+    switchToLocalMode()
   } finally {
     isSavingCourse.value = false
   }
@@ -244,7 +237,7 @@ const saveRegistration = async (payload) => {
   } catch (error) {
     const savedRegistration = createLocalRegistration(currentStudent.value.id, courseIds)
     registrations.value.unshift(savedRegistration)
-    switchToLocalMode(`API is not reachable at ${API_BASE_URL}. Registration was saved locally.`)
+    switchToLocalMode()
     if (typeof onSuccess === 'function') {
       onSuccess(savedRegistration)
     }
@@ -273,7 +266,7 @@ const deleteCourse = async (courseId) => {
       ...registration,
       courseIds: registration.courseIds.filter((id) => id !== courseId),
     }))
-    switchToLocalMode(`API is not reachable at ${API_BASE_URL}. Course deletion was applied locally.`)
+    switchToLocalMode()
   } finally {
     isSavingCourse.value = false
   }
