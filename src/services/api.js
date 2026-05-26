@@ -1,4 +1,10 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+const shouldIgnoreLocalApiBaseUrl = typeof window !== 'undefined'
+  && window.location.hostname !== 'localhost'
+  && window.location.hostname !== '127.0.0.1'
+  && /^https?:\/\/localhost\b/i.test(rawApiBaseUrl)
+
+const API_BASE_URL = (shouldIgnoreLocalApiBaseUrl ? '/api' : rawApiBaseUrl).replace(/\/$/, '')
 
 const demoCourses = [
   { id: 1, title: 'Physics 101', code: 'PHY101', level: '100', unit: 3, type: 'Core', semester: 'First Semester' },
