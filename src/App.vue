@@ -1,6 +1,33 @@
 <template>
-  <div v-if="!loggedInRole" class="min-h-screen">
-    <LoginCard :busy="isSavingStudent" @login-success="handleLoginSuccess" />
+  <div v-if="isBootstrapping" class="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div class="w-full max-w-lg rounded-3xl bg-white p-8 text-center shadow-xl shadow-slate-200/80">
+      <p class="text-sm uppercase tracking-[0.3em] text-sky-600">Course Registration</p>
+      <h1 class="mt-3 text-3xl font-semibold text-slate-950">Connecting to backend</h1>
+      <p class="mt-4 text-slate-600">
+        The application is loading live data from the server.
+      </p>
+    </div>
+  </div>
+
+  <div v-else-if="initializationError" class="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div class="w-full max-w-xl rounded-3xl bg-white p-8 shadow-xl shadow-slate-200/80">
+      <p class="text-sm uppercase tracking-[0.3em] text-rose-600">Backend Required</p>
+      <h1 class="mt-3 text-3xl font-semibold text-slate-950">The backend is unavailable</h1>
+      <p class="mt-4 text-slate-600">
+        {{ initializationError }}
+      </p>
+      <button
+        type="button"
+        class="mt-6 rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+        @click="loadInitialData"
+      >
+        Retry connection
+      </button>
+    </div>
+  </div>
+
+  <div v-else-if="!loggedInRole" class="min-h-screen">
+    <LoginCard :busy="isAuthenticating" @login-success="handleLoginSuccess" />
   </div>
 
   <div v-else class="min-h-screen bg-slate-50 text-slate-900">
@@ -72,8 +99,10 @@ const courses = ref([])
 const students = ref([])
 const registrations = ref([])
 const errorMessage = ref('')
+const initializationError = ref('')
+const isBootstrapping = ref(true)
 const isSavingCourse = ref(false)
-const isSavingStudent = ref(false)
+const isAuthenticating = ref(false)
 const isSavingRegistration = ref(false)
 
 onMounted(() => {
@@ -82,6 +111,8 @@ onMounted(() => {
 
 const loadInitialData = async () => {
   errorMessage.value = ''
+  initializationError.value = ''
+  isBootstrapping.value = true
 
   try {
     const data = await api.bootstrap()
@@ -92,7 +123,9 @@ const loadInitialData = async () => {
     courses.value = []
     students.value = []
     registrations.value = []
-    errorMessage.value = error.message || 'Unable to load data from the server.'
+    initializationError.value = error.message || 'Unable to load data from the server.'
+  } finally {
+    isBootstrapping.value = false
   }
 }
 
@@ -100,12 +133,22 @@ const handleLoginSuccess = async (payload) => {
   errorMessage.value = ''
 
   if (payload.role === 'admin') {
-    loggedInRole.value = 'admin'
+    isAuthenticating.value = true
+
+    try {
+      await api.loginAdmin(payload.credentials)
+      loggedInRole.value = 'admin'
+    } catch (error) {
+      errorMessage.value = error.message || 'Admin login failed.'
+    } finally {
+      isAuthenticating.value = false
+    }
+
     return
   }
 
   if (payload.role === 'student') {
-    isSavingStudent.value = true
+    isAuthenticating.value = true
 
     try {
       const savedStudent = await api.createStudent(payload.student)
@@ -115,7 +158,7 @@ const handleLoginSuccess = async (payload) => {
     } catch (error) {
       errorMessage.value = error.message || 'Student login failed.'
     } finally {
-      isSavingStudent.value = false
+      isAuthenticating.value = false
     }
   }
 }

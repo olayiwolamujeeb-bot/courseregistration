@@ -24,6 +24,13 @@ The frontend is configured to call:
 VITE_API_BASE_URL=http://127.0.0.1:8000/api
 ```
 
+Admin login is now validated by the backend API. Configure the server with:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin
+```
+
 ## Backend details
 
 - `backend/router.php` routes `/api/*` requests to the PHP API

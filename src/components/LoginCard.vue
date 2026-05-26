@@ -104,9 +104,6 @@ defineProps({
 
 const emit = defineEmits(['login-success'])
 
-const adminUsername = (import.meta.env.VITE_ADMIN_USERNAME || 'admin').trim()
-const adminPassword = (import.meta.env.VITE_ADMIN_PASSWORD || 'admin').trim()
-
 const selectedRole = ref(null)
 const loginError = ref('')
 const loginForm = ref({
@@ -132,17 +129,18 @@ const handleLogin = () => {
   const name = loginForm.value.name.trim()
 
   if (selectedRole.value === 'admin') {
-    if (!adminPassword) {
-      loginError.value = 'Admin login is not configured. Set VITE_ADMIN_PASSWORD in your environment.'
+    if (!name || !loginForm.value.password) {
+      loginError.value = 'Enter your admin name and password.'
       return
     }
 
-    if (name.toLowerCase() === adminUsername.toLowerCase() && loginForm.value.password === adminPassword) {
-      emit('login-success', { role: 'admin' })
-      return
-    }
-
-    loginError.value = 'Invalid admin login.'
+    emit('login-success', {
+      role: 'admin',
+      credentials: {
+        name,
+        password: loginForm.value.password,
+      },
+    })
     return
   }
 

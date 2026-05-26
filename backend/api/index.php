@@ -68,6 +68,17 @@ function normalize_registration($row)
     ];
 }
 
+function read_env_value($key, $default = '')
+{
+    $value = $_ENV[$key] ?? getenv($key);
+
+    if ($value === false || $value === null) {
+        return $default;
+    }
+
+    return (string) $value;
+}
+
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 $uri = preg_replace('#^/course-registration-api/api#', '', $uri) ?? $uri;
 $uri = preg_replace('#^/api#', '', $uri) ?? $uri;
@@ -81,6 +92,32 @@ $method = $_SERVER['REQUEST_METHOD'];
 try {
     if ($resource === 'health' && $method === 'GET') {
         json_response(200, ['ok' => true]);
+    }
+
+    if ($resource === 'auth' && $resourceId === 'admin-login' && $method === 'POST') {
+        $payload = read_json_body();
+        $name = trim((string) ($payload['name'] ?? ''));
+        $password = (string) ($payload['password'] ?? '');
+
+        if ($name === '' || $password === '') {
+            json_response(422, ['message' => 'Admin name and password are required.']);
+        }
+
+        $configuredAdminUsername = trim(read_env_value('ADMIN_USERNAME', 'admin'));
+        $configuredAdminPassword = read_env_value('ADMIN_PASSWORD', 'admin');
+
+        if ($configuredAdminUsername === '' || $configuredAdminPassword === '') {
+            json_response(500, ['message' => 'Admin login is not configured on the server.']);
+        }
+
+        if (strcasecmp($name, $configuredAdminUsername) !== 0 || !hash_equals($configuredAdminPassword, $password)) {
+            json_response(401, ['message' => 'Invalid admin login.']);
+        }
+
+        json_response(200, [
+            'role' => 'admin',
+            'name' => $configuredAdminUsername,
+        ]);
     }
 
     if ($resource === 'courses') {

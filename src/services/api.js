@@ -91,6 +91,14 @@ export const api = {
     }
   },
 
+  loginAdmin(credentials) {
+    return request('/auth/admin-login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+      timeoutMs: LOGIN_TIMEOUT_MS,
+    })
+  },
+
   createCourse(course) {
     return request('/courses', {
       method: 'POST',
