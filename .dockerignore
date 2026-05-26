@@ -1,0 +1,15 @@
+.git
+.gitignore
+.vscode
+node_modules
+dist
+certs
+backend
+course registration
+backend-test/node_modules
+backend-test/vendor
+backend-test/storage/logs
+backend-test/storage/framework/cache/*
+backend-test/storage/framework/sessions/*
+backend-test/storage/framework/views/*
+backend-test/tests

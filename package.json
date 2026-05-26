@@ -1,25 +1,14 @@
 {
   "name": "course-registration",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Course registration system powered by Laravel and MySQL",
+  "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "php backend-test\\artisan serve",
+    "migrate": "php backend-test\\artisan migrate",
+    "test": "php backend-test\\artisan test"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "jspdf": "^4.2.1",
-    "vue": "^3.5.34"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.3.0",
-    "@vitejs/plugin-vue": "^6.0.7",
-    "tailwindcss": "^4.3.0",
-    "vite": "^8.0.13"
-  }
+  "license": "ISC"
 }

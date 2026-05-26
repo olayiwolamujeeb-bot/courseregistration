@@ -1,88 +1,121 @@
 # Course Registration System
 
-A Vue 3 + Vite course registration dashboard for managing a course catalog, student registrations, and admin workflows.
+This project now runs through Laravel in `backend-test` and stores data in MySQL. The previous Vite dev server has been removed from the active app flow.
 
-## Features
+## What changed
 
-- Admin login and student login flows
-- Admin course management (add, edit, delete, and filter courses)
-- Student course registration view
-- Local dev API middleware for `/api` routes during development
-- Tailwind-based UI
+- Laravel now serves the frontend at `/`
+- Laravel API routes now handle `courses`, `students`, and `registrations`
+- MySQL is the default database target in `.env.example`
+- Session, cache, and queue defaults were changed to file/sync so XAMPP MySQL works without extra Laravel infrastructure tables
 
-## Tech Stack
+## Run with XAMPP MySQL
 
-- Vue 3
-- Vite
-- Tailwind CSS v4
-- jsPDF (used by the app dependencies)
+1. Start `Apache` and `MySQL` in XAMPP.
+2. In phpMyAdmin, create a database named `course_registration`.
+3. Copy `backend-test/.env.example` to `backend-test/.env`.
+4. Make sure these values are set in `backend-test/.env`:
 
-## Project Structure
-
-- `src/` — Vue app source
-- `src/components/` — reusable UI components
-- `src/services/api.js` — API client helpers
-- `vite.config.js` — Vite config and local `/api` middleware
-- `render.yaml` — Render deployment config
-
-## Getting Started
-
-### 1. Install dependencies
-
-```bash
-npm install
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=course_registration
+DB_USERNAME=root
+DB_PASSWORD=
+SESSION_DRIVER=file
+CACHE_STORE=file
+QUEUE_CONNECTION=sync
 ```
 
-### 2. Run the development server
+5. Install Laravel dependencies:
 
 ```bash
-npm run dev
+cd backend-test
+composer install
+php artisan key:generate
+php artisan migrate
 ```
 
-The app will be available at `http://localhost:5174/` by default.
-
-### 3. Build for production
+6. Start the Laravel app:
 
 ```bash
-npm run build
+php artisan serve
 ```
 
-### 4. Preview the production build
+Open `http://127.0.0.1:8000`.
 
-```bash
-npm run preview
+## Deploy on Render
+
+This repo is now set up for Render with Docker:
+
+- `render.yaml` defines a Docker web service
+- `backend-test/Dockerfile` builds and serves the Laravel app
+- `backend-test/docker/render-start.sh` runs migrations and starts Apache on Render's assigned port
+
+### Render environment variables
+
+The blueprint now provisions a private MySQL service on Render and wires the Laravel app to it automatically. You only need to set the public app URL:
+
+```env
+APP_URL=https://your-service.onrender.com
 ```
 
-## Authentication
+### Exact Render dashboard setup
 
-### Admin login
+In Render:
 
-The default admin credentials are:
+1. Click `New +` -> `Blueprint`.
+2. Connect this repository.
+3. Render will detect `render.yaml`.
+4. Create both services:
+   - `course-registration`
+   - `course-registration-mysql`
+5. Open the web service in Render and set:
 
-- **Username:** `admin`
-- **Password:** `admin`
+```env
+APP_URL=https://course-registration.onrender.com
+```
 
-You can override these with environment variables:
+If your service name on Render is different, replace `course-registration` in `APP_URL` with your actual Render subdomain.
 
-- `VITE_ADMIN_USERNAME`
-- `VITE_ADMIN_PASSWORD`
+Recommended Render values:
 
-### Student login
+- `APP_ENV=production`
+- `APP_DEBUG=false`
+- `DB_CONNECTION=mysql`
+- `SESSION_DRIVER=file`
+- `CACHE_STORE=file`
+- `QUEUE_CONNECTION=sync`
+- `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD` are filled automatically from the private MySQL service
 
-Students enter their name and select a level to access the student registration flow.
+### If you still want to use XAMPP MySQL
 
-## API behavior
+For local development with XAMPP, keep:
 
-During development, Vite serves a local middleware at `/api` so the app can create, read, update, and delete courses, registrations, and students without requiring a separate backend.
+```env
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=course_registration
+DB_USERNAME=root
+DB_PASSWORD=
+```
 
-## Deployment
+For Render production, do not use `127.0.0.1` unless MySQL is running inside the same Render environment, which it is not in this setup.
 
-1. Push this repository to GitHub.
-2. Create a new **Web Service** on Render.
-3. Connect the GitHub repository.
-4. Render will use the `render.yaml` config to build and serve the app.
+### Important XAMPP note
 
-## Notes
+Your local XAMPP MySQL remains for local development only. Production on Render now uses the private Render MySQL service defined in `render.yaml`, which is safer than exposing your local machine's database.
 
-- Local development data is kept in memory by the Vite API middleware.
-- The app is a frontend-focused demo and is not a full production authentication system.
+## Important folders
+
+- `backend-test/` - active Laravel application
+- `backend-test/public/assets/` - compiled frontend assets now served by Laravel
+- `backend-test/routes/api.php` - JSON API routes
+- `backend-test/resources/views/app.blade.php` - frontend entry page
+- `backend-test/Dockerfile` - Render Docker build
+- `backend-test/docker/render-start.sh` - Render container startup script
+
+## Note
+
+The original Vue source is still in `src/` for reference, but the live app is now served from Laravel using the compiled assets copied into `backend-test/public/assets`.
