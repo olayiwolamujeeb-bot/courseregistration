@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://course-registration.onrender.com/api/:path*"
+      "destination": "https://courseregistration-8.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
