@@ -1,6 +1,6 @@
 # Course Registration System
 
-This project now has a working local backend path using the plain PHP API in `backend/`. It is the most reliable way to run the app on this machine because the Laravel install in `backend-test/` currently has a broken Composer/vendor state.
+This project uses a Vue frontend with a single plain PHP API backend in `backend/`.
 
 ## Local run
 
@@ -24,7 +24,7 @@ The frontend is configured to call:
 VITE_API_BASE_URL=http://127.0.0.1:8000/api
 ```
 
-Admin login is now validated by the backend API. Configure the server with:
+Admin login is validated by the backend API. Configure the server with:
 
 ```env
 ADMIN_USERNAME=admin
@@ -50,7 +50,3 @@ DB_DATABASE=course_registration
 DB_USERNAME=root
 DB_PASSWORD=
 ```
-
-## Laravel note
-
-`backend-test/` is still in the repo, but its current `vendor` directory and lockfile do not match the local PHP/Composer environment. Until that dependency tree is rebuilt cleanly, use `backend/` for local API work.

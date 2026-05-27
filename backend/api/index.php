@@ -9,7 +9,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$pdo = require __DIR__ . '/db.php';
+require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/env.php';
+load_env_file(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . '.env');
+$storage = require __DIR__ . '/db.php';
 
 function json_response($statusCode, $payload)
 {
@@ -55,7 +58,10 @@ function normalize_student($row)
 
 function normalize_registration($row)
 {
-    $courseIds = json_decode($row['course_ids'] ?? '[]', true);
+    $courseIds = $row['course_ids'] ?? [];
+    if (!is_array($courseIds)) {
+        $courseIds = json_decode((string) $courseIds, true);
+    }
     if (!is_array($courseIds)) {
         $courseIds = [];
     }
@@ -103,8 +109,8 @@ try {
             json_response(422, ['message' => 'Admin name and password are required.']);
         }
 
-        $configuredAdminUsername = trim(read_env_value('ADMIN_USERNAME', 'admin'));
-        $configuredAdminPassword = read_env_value('ADMIN_PASSWORD', 'admin');
+        $configuredAdminUsername = trim(read_env_value('ADMIN_USERNAME', read_env_value('VITE_ADMIN_USERNAME', 'admin')));
+        $configuredAdminPassword = read_env_value('ADMIN_PASSWORD', read_env_value('VITE_ADMIN_PASSWORD', 'admin'));
 
         if ($configuredAdminUsername === '' || $configuredAdminPassword === '') {
             json_response(500, ['message' => 'Admin login is not configured on the server.']);
@@ -120,10 +126,129 @@ try {
         ]);
     }
 
+    if ($resource === 'auth' && $resourceId === 'student-login' && $method === 'POST') {
+        $payload = read_json_body();
+        $name = trim((string) ($payload['name'] ?? ''));
+        $level = trim((string) ($payload['level'] ?? ''));
+        $email = trim((string) ($payload['email'] ?? ''));
+        $matric = trim((string) ($payload['matric'] ?? ''));
+
+        if ($name === '' || $level === '') {
+            json_response(422, ['message' => 'Student name and level are required.']);
+        }
+
+        if (is_json_store($storage)) {
+            $data = json_store_read($storage);
+            $matchedStudent = null;
+
+            foreach ($data['students'] as $student) {
+                $sameMatric = $matric !== '' && strcasecmp((string) ($student['matric'] ?? ''), $matric) === 0;
+                $sameEmail = $email !== '' && strcasecmp((string) ($student['email'] ?? ''), $email) === 0;
+                $sameNameAndLevel = strcasecmp((string) ($student['name'] ?? ''), $name) === 0
+                    && (string) ($student['level'] ?? '') === $level;
+
+                if ($sameMatric || $sameEmail || $sameNameAndLevel) {
+                    $matchedStudent = $student;
+                    break;
+                }
+            }
+
+            if ($matchedStudent !== null) {
+                if ($email !== '') {
+                    $matchedStudent['email'] = $email;
+                }
+                if ($matric !== '') {
+                    $matchedStudent['matric'] = $matric;
+                }
+                $matchedStudent['name'] = $name;
+                $matchedStudent['level'] = $level;
+                $matchedStudent['updated_at'] = date('c');
+
+                $studentIndex = json_store_find_index_by_id($data['students'], $matchedStudent['id']);
+                if ($studentIndex >= 0) {
+                    $data['students'][$studentIndex] = $matchedStudent;
+                    json_store_write($storage, $data);
+                }
+
+                json_response(200, normalize_student($matchedStudent));
+            }
+
+            $record = [
+                'id' => json_store_next_id($data, 'student_id'),
+                'name' => $name,
+                'level' => $level,
+                'email' => $email,
+                'matric' => $matric,
+                'created_at' => date('c'),
+                'updated_at' => date('c'),
+            ];
+
+            $data['students'][] = $record;
+            json_store_write($storage, $data);
+            json_response(201, normalize_student($record));
+        }
+
+        if ($matric !== '') {
+            $studentStatement = $storage->prepare('SELECT * FROM students WHERE matric = :matric LIMIT 1');
+            $studentStatement->execute([':matric' => $matric]);
+            $existingStudent = $studentStatement->fetch();
+        } elseif ($email !== '') {
+            $studentStatement = $storage->prepare('SELECT * FROM students WHERE email = :email LIMIT 1');
+            $studentStatement->execute([':email' => $email]);
+            $existingStudent = $studentStatement->fetch();
+        } else {
+            $studentStatement = $storage->prepare('SELECT * FROM students WHERE LOWER(name) = LOWER(:name) AND level = :level LIMIT 1');
+            $studentStatement->execute([
+                ':name' => $name,
+                ':level' => $level,
+            ]);
+            $existingStudent = $studentStatement->fetch();
+        }
+
+        if ($existingStudent) {
+            $updateStatement = $storage->prepare('UPDATE students SET name = :name, level = :level, email = :email, matric = :matric WHERE id = :id');
+            $updateStatement->execute([
+                ':name' => $name,
+                ':level' => $level,
+                ':email' => $email !== '' ? $email : ($existingStudent['email'] ?? ''),
+                ':matric' => $matric !== '' ? $matric : ($existingStudent['matric'] ?? ''),
+                ':id' => (int) $existingStudent['id'],
+            ]);
+
+            $freshStatement = $storage->prepare('SELECT * FROM students WHERE id = :id');
+            $freshStatement->execute([':id' => (int) $existingStudent['id']]);
+            json_response(200, normalize_student($freshStatement->fetch()));
+        }
+
+        $statement = $storage->prepare('INSERT INTO students (name, level, email, matric) VALUES (:name, :level, :email, :matric)');
+        $statement->execute([
+            ':name' => $name,
+            ':level' => $level,
+            ':email' => $email,
+            ':matric' => $matric,
+        ]);
+
+        json_response(201, normalize_student([
+            'id' => (int) $storage->lastInsertId(),
+            'name' => $name,
+            'level' => $level,
+            'email' => $email,
+            'matric' => $matric,
+        ]));
+    }
+
     if ($resource === 'courses') {
         if ($method === 'GET') {
-            $statement = $pdo->query('SELECT * FROM courses ORDER BY id DESC');
-            $courses = array_map('normalize_course', $statement->fetchAll());
+            if (is_json_store($storage)) {
+                $data = json_store_read($storage);
+                $courses = $data['courses'];
+                json_store_sort_desc_by_id($courses);
+            } else {
+                $statement = $storage->query('SELECT * FROM courses ORDER BY id DESC');
+                $courses = $statement->fetchAll();
+            }
+
+            $courses = array_map('normalize_course', $courses);
             json_response(200, $courses);
         }
 
@@ -140,13 +265,38 @@ try {
                 json_response(422, ['message' => 'Course payload is incomplete.']);
             }
 
-            $duplicate = $pdo->prepare('SELECT id FROM courses WHERE code = :code');
+            if (is_json_store($storage)) {
+                $data = json_store_read($storage);
+                foreach ($data['courses'] as $course) {
+                    if (strcasecmp((string) ($course['code'] ?? ''), $code) === 0) {
+                        json_response(422, ['message' => 'A course with this code already exists.']);
+                    }
+                }
+
+                $record = [
+                    'id' => json_store_next_id($data, 'course_id'),
+                    'title' => $title,
+                    'code' => $code,
+                    'level' => $level,
+                    'semester' => $semester,
+                    'unit' => $unit,
+                    'type' => $type,
+                    'created_at' => date('c'),
+                    'updated_at' => date('c'),
+                ];
+
+                $data['courses'][] = $record;
+                json_store_write($storage, $data);
+                json_response(201, normalize_course($record));
+            }
+
+            $duplicate = $storage->prepare('SELECT id FROM courses WHERE code = :code');
             $duplicate->execute([':code' => $code]);
             if ($duplicate->fetch()) {
                 json_response(422, ['message' => 'A course with this code already exists.']);
             }
 
-            $statement = $pdo->prepare('INSERT INTO courses (title, code, level, semester, unit, type) VALUES (:title, :code, :level, :semester, :unit, :type)');
+            $statement = $storage->prepare('INSERT INTO courses (title, code, level, semester, unit, type) VALUES (:title, :code, :level, :semester, :unit, :type)');
             $statement->execute([
                 ':title' => $title,
                 ':code' => $code,
@@ -157,7 +307,7 @@ try {
             ]);
 
             json_response(201, normalize_course([
-                'id' => (int) $pdo->lastInsertId(),
+                'id' => (int) $storage->lastInsertId(),
                 'title' => $title,
                 'code' => $code,
                 'level' => $level,
@@ -180,7 +330,35 @@ try {
                 json_response(422, ['message' => 'Course payload is incomplete.']);
             }
 
-            $duplicate = $pdo->prepare('SELECT id FROM courses WHERE code = :code AND id != :id');
+            if (is_json_store($storage)) {
+                $data = json_store_read($storage);
+                $courseIndex = json_store_find_index_by_id($data['courses'], $resourceId);
+
+                if ($courseIndex < 0) {
+                    json_response(404, ['message' => 'Course not found.']);
+                }
+
+                foreach ($data['courses'] as $existingCourse) {
+                    if ((int) $existingCourse['id'] !== (int) $resourceId && strcasecmp((string) ($existingCourse['code'] ?? ''), $code) === 0) {
+                        json_response(422, ['message' => 'A course with this code already exists.']);
+                    }
+                }
+
+                $data['courses'][$courseIndex] = array_merge($data['courses'][$courseIndex], [
+                    'title' => $title,
+                    'code' => $code,
+                    'level' => $level,
+                    'semester' => $semester,
+                    'unit' => $unit,
+                    'type' => $type,
+                    'updated_at' => date('c'),
+                ]);
+
+                json_store_write($storage, $data);
+                json_response(200, normalize_course($data['courses'][$courseIndex]));
+            }
+
+            $duplicate = $storage->prepare('SELECT id FROM courses WHERE code = :code AND id != :id');
             $duplicate->execute([
                 ':code' => $code,
                 ':id' => (int) $resourceId,
@@ -189,7 +367,7 @@ try {
                 json_response(422, ['message' => 'A course with this code already exists.']);
             }
 
-            $statement = $pdo->prepare('UPDATE courses SET title = :title, code = :code, level = :level, semester = :semester, unit = :unit, type = :type WHERE id = :id');
+            $statement = $storage->prepare('UPDATE courses SET title = :title, code = :code, level = :level, semester = :semester, unit = :unit, type = :type WHERE id = :id');
             $statement->execute([
                 ':title' => $title,
                 ':code' => $code,
@@ -200,7 +378,7 @@ try {
                 ':id' => (int) $resourceId,
             ]);
 
-            $updated = $pdo->prepare('SELECT * FROM courses WHERE id = :id');
+            $updated = $storage->prepare('SELECT * FROM courses WHERE id = :id');
             $updated->execute([':id' => (int) $resourceId]);
             $row = $updated->fetch();
 
@@ -212,14 +390,42 @@ try {
         }
 
         if ($method === 'DELETE' && $resourceId !== null) {
-            $statement = $pdo->prepare('DELETE FROM courses WHERE id = :id');
+            if (is_json_store($storage)) {
+                $data = json_store_read($storage);
+                $courseIndex = json_store_find_index_by_id($data['courses'], $resourceId);
+
+                if ($courseIndex < 0) {
+                    json_response(404, ['message' => 'Course not found.']);
+                }
+
+                array_splice($data['courses'], $courseIndex, 1);
+
+                foreach ($data['registrations'] as &$registration) {
+                    $courseIds = is_array($registration['course_ids'] ?? null)
+                        ? $registration['course_ids']
+                        : json_decode((string) ($registration['course_ids'] ?? '[]'), true);
+
+                    if (!is_array($courseIds)) {
+                        $courseIds = [];
+                    }
+
+                    $registration['course_ids'] = array_values(array_filter($courseIds, fn($courseId) => (int) $courseId !== (int) $resourceId));
+                }
+                unset($registration);
+
+                json_store_write($storage, $data);
+                http_response_code(204);
+                exit;
+            }
+
+            $statement = $storage->prepare('DELETE FROM courses WHERE id = :id');
             $statement->execute([':id' => (int) $resourceId]);
 
             if ($statement->rowCount() === 0) {
                 json_response(404, ['message' => 'Course not found.']);
             }
 
-            $registrationStatement = $pdo->prepare('SELECT * FROM registrations');
+            $registrationStatement = $storage->prepare('SELECT * FROM registrations');
             $registrationStatement->execute();
             $registrations = $registrationStatement->fetchAll();
 
@@ -231,7 +437,7 @@ try {
 
                 $filtered = array_values(array_filter($courseIds, fn($courseId) => (int) $courseId !== (int) $resourceId));
                 if ($filtered !== $courseIds) {
-                    $update = $pdo->prepare('UPDATE registrations SET course_ids = :course_ids WHERE id = :id');
+                    $update = $storage->prepare('UPDATE registrations SET course_ids = :course_ids WHERE id = :id');
                     $update->execute([
                         ':course_ids' => json_encode($filtered),
                         ':id' => (int) $registration['id'],
@@ -246,8 +452,16 @@ try {
 
     if ($resource === 'students') {
         if ($method === 'GET') {
-            $statement = $pdo->query('SELECT * FROM students ORDER BY id DESC');
-            $students = array_map('normalize_student', $statement->fetchAll());
+            if (is_json_store($storage)) {
+                $data = json_store_read($storage);
+                $students = $data['students'];
+                json_store_sort_desc_by_id($students);
+            } else {
+                $statement = $storage->query('SELECT * FROM students ORDER BY id DESC');
+                $students = $statement->fetchAll();
+            }
+
+            $students = array_map('normalize_student', $students);
             json_response(200, $students);
         }
 
@@ -262,7 +476,24 @@ try {
                 json_response(422, ['message' => 'Student payload is incomplete.']);
             }
 
-            $statement = $pdo->prepare('INSERT INTO students (name, level, email, matric) VALUES (:name, :level, :email, :matric)');
+            if (is_json_store($storage)) {
+                $data = json_store_read($storage);
+                $record = [
+                    'id' => json_store_next_id($data, 'student_id'),
+                    'name' => $name,
+                    'level' => $level,
+                    'email' => $email,
+                    'matric' => $matric,
+                    'created_at' => date('c'),
+                    'updated_at' => date('c'),
+                ];
+
+                $data['students'][] = $record;
+                json_store_write($storage, $data);
+                json_response(201, normalize_student($record));
+            }
+
+            $statement = $storage->prepare('INSERT INTO students (name, level, email, matric) VALUES (:name, :level, :email, :matric)');
             $statement->execute([
                 ':name' => $name,
                 ':level' => $level,
@@ -271,7 +502,7 @@ try {
             ]);
 
             json_response(201, normalize_student([
-                'id' => (int) $pdo->lastInsertId(),
+                'id' => (int) $storage->lastInsertId(),
                 'name' => $name,
                 'level' => $level,
                 'email' => $email,
@@ -282,8 +513,16 @@ try {
 
     if ($resource === 'registrations') {
         if ($method === 'GET') {
-            $statement = $pdo->query('SELECT * FROM registrations ORDER BY id DESC');
-            $registrations = array_map('normalize_registration', $statement->fetchAll());
+            if (is_json_store($storage)) {
+                $data = json_store_read($storage);
+                $registrations = $data['registrations'];
+                json_store_sort_desc_by_id($registrations);
+            } else {
+                $statement = $storage->query('SELECT * FROM registrations ORDER BY id DESC');
+                $registrations = $statement->fetchAll();
+            }
+
+            $registrations = array_map('normalize_registration', $registrations);
             json_response(200, $registrations);
         }
 
@@ -301,14 +540,45 @@ try {
                 json_response(422, ['message' => 'Select at least one course.']);
             }
 
-            $studentStatement = $pdo->prepare('SELECT id FROM students WHERE id = :id');
+            if (is_json_store($storage)) {
+                $data = json_store_read($storage);
+                $studentExists = json_store_find_index_by_id($data['students'], $studentId) >= 0;
+
+                if (!$studentExists) {
+                    json_response(422, ['message' => 'Student does not exist.']);
+                }
+
+                $existingCourseIds = array_map(fn($course) => (int) $course['id'], $data['courses']);
+                $matchedCourseIds = array_values(array_intersect($courseIds, $existingCourseIds));
+                sort($matchedCourseIds);
+                $sortedCourseIds = $courseIds;
+                sort($sortedCourseIds);
+
+                if ($matchedCourseIds !== $sortedCourseIds) {
+                    json_response(422, ['message' => 'One or more selected courses do not exist.']);
+                }
+
+                $record = [
+                    'id' => json_store_next_id($data, 'registration_id'),
+                    'student_id' => $studentId,
+                    'course_ids' => $courseIds,
+                    'created_at' => date('c'),
+                    'updated_at' => date('c'),
+                ];
+
+                $data['registrations'][] = $record;
+                json_store_write($storage, $data);
+                json_response(201, normalize_registration($record));
+            }
+
+            $studentStatement = $storage->prepare('SELECT id FROM students WHERE id = :id');
             $studentStatement->execute([':id' => $studentId]);
             if (!$studentStatement->fetch()) {
                 json_response(422, ['message' => 'Student does not exist.']);
             }
 
             $coursePlaceholders = implode(', ', array_fill(0, count($courseIds), '?'));
-            $courseStatement = $pdo->prepare("SELECT id FROM courses WHERE id IN ({$coursePlaceholders})");
+            $courseStatement = $storage->prepare("SELECT id FROM courses WHERE id IN ({$coursePlaceholders})");
             $courseStatement->execute($courseIds);
             $matchedCourseIds = array_map('intval', array_column($courseStatement->fetchAll(), 'id'));
 
@@ -320,14 +590,14 @@ try {
                 json_response(422, ['message' => 'One or more selected courses do not exist.']);
             }
 
-            $statement = $pdo->prepare('INSERT INTO registrations (student_id, course_ids) VALUES (:student_id, :course_ids)');
+            $statement = $storage->prepare('INSERT INTO registrations (student_id, course_ids) VALUES (:student_id, :course_ids)');
             $statement->execute([
                 ':student_id' => $studentId,
                 ':course_ids' => json_encode($courseIds),
             ]);
 
             json_response(201, normalize_registration([
-                'id' => (int) $pdo->lastInsertId(),
+                'id' => (int) $storage->lastInsertId(),
                 'student_id' => $studentId,
                 'course_ids' => json_encode($courseIds),
                 'created_at' => date('c'),

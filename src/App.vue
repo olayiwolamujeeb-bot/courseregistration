@@ -27,7 +27,7 @@
   </div>
 
   <div v-else-if="!loggedInRole" class="min-h-screen">
-    <LoginCard :busy="isAuthenticating" @login-success="handleLoginSuccess" />
+    <LoginCard :busy="isAuthenticating" :server-error="errorMessage" @login-success="handleLoginSuccess" />
   </div>
 
   <div v-else class="min-h-screen bg-slate-50 text-slate-900">
@@ -151,10 +151,16 @@ const handleLoginSuccess = async (payload) => {
     isAuthenticating.value = true
 
     try {
-      const savedStudent = await api.createStudent(payload.student)
+      const savedStudent = await api.loginStudent(payload.student)
       currentStudent.value = savedStudent
       loggedInRole.value = 'student'
-      students.value.unshift(savedStudent)
+      const existingStudentIndex = students.value.findIndex((student) => student.id === savedStudent.id)
+
+      if (existingStudentIndex > -1) {
+        students.value.splice(existingStudentIndex, 1, savedStudent)
+      } else {
+        students.value.unshift(savedStudent)
+      }
     } catch (error) {
       errorMessage.value = error.message || 'Student login failed.'
     } finally {

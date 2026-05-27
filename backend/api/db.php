@@ -1,7 +1,19 @@
 <?php
 
+require_once __DIR__ . '/env.php';
+load_env_file(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . '.env');
+
 $defaultSqlitePath = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'database.sqlite';
+$defaultJsonPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'data.json';
 $dbConnection = strtolower((string) ($_ENV['DB_CONNECTION'] ?? getenv('DB_CONNECTION') ?: 'sqlite'));
+$availablePdoDrivers = class_exists('PDO') ? PDO::getAvailableDrivers() : [];
+
+if ($dbConnection === 'sqlite' && !in_array('sqlite', $availablePdoDrivers, true)) {
+    return [
+        'driver' => 'json',
+        'path' => (string) ($_ENV['DB_JSON_PATH'] ?? getenv('DB_JSON_PATH') ?: $defaultJsonPath),
+    ];
+}
 
 if ($dbConnection === 'sqlite') {
     $sqlitePath = (string) ($_ENV['DB_DATABASE'] ?? getenv('DB_DATABASE') ?: $defaultSqlitePath);

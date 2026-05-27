@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+!.env.production
 .vite-api/
 backend/database.sqlite
 .vscode/

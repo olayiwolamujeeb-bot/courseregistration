@@ -77,7 +77,7 @@
             </div>
           </div>
 
-          <p v-if="loginError" class="text-sm text-red-600">{{ loginError }}</p>
+          <p v-if="loginError || serverError" class="text-sm text-red-600">{{ loginError || serverError }}</p>
 
           <button
             type="submit"
@@ -99,6 +99,10 @@ defineProps({
   busy: {
     type: Boolean,
     default: false,
+  },
+  serverError: {
+    type: String,
+    default: '',
   },
 })
 

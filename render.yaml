@@ -1,69 +1,15 @@
 services:
-  - type: pserv
-    name: course-registration-mysql
-    runtime: docker
-    plan: starter
-    dockerfilePath: ./backend-test/mysql/Dockerfile
-    dockerContext: .
-    disk:
-      name: mysql-data
-      mountPath: /var/lib/mysql
-      sizeGB: 1
-    envVars:
-      - key: MYSQL_DATABASE
-        value: course_registration
-      - key: MYSQL_USER
-        value: course_registration_user
-      - key: MYSQL_PASSWORD
-        generateValue: true
-      - key: MYSQL_ROOT_PASSWORD
-        generateValue: true
   - type: web
     name: course-registration
     runtime: docker
     plan: free
-    dockerfilePath: ./backend-test/Dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     autoDeploy: true
     envVars:
-      - key: APP_ENV
-        value: production
-      - key: APP_DEBUG
-        value: false
-      - key: APP_KEY
-        generateValue: true
-      - key: APP_URL
-        sync: false
       - key: DB_CONNECTION
-        value: mysql
-      - key: DB_HOST
-        fromService:
-          name: course-registration-mysql
-          type: pserv
-          property: host
-      - key: DB_PORT
-        fromService:
-          name: course-registration-mysql
-          type: pserv
-          property: port
-      - key: DB_DATABASE
-        fromService:
-          name: course-registration-mysql
-          type: pserv
-          envVarKey: MYSQL_DATABASE
-      - key: DB_USERNAME
-        fromService:
-          name: course-registration-mysql
-          type: pserv
-          envVarKey: MYSQL_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: course-registration-mysql
-          type: pserv
-          envVarKey: MYSQL_PASSWORD
-      - key: SESSION_DRIVER
-        value: file
-      - key: CACHE_STORE
-        value: file
-      - key: QUEUE_CONNECTION
-        value: sync
+        value: sqlite
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false

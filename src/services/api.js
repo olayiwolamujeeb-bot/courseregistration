@@ -1,8 +1,16 @@
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+const isLoopbackApiBaseUrl = (() => {
+  try {
+    const parsedUrl = new URL(rawApiBaseUrl, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+    return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(parsedUrl.hostname)
+  } catch {
+    return false
+  }
+})()
+
 const shouldIgnoreLocalApiBaseUrl = typeof window !== 'undefined'
-  && window.location.hostname !== 'localhost'
-  && window.location.hostname !== '127.0.0.1'
-  && /^https?:\/\/localhost\b/i.test(rawApiBaseUrl)
+  && !['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname)
+  && isLoopbackApiBaseUrl
 
 const API_BASE_URL = (shouldIgnoreLocalApiBaseUrl ? '/api' : rawApiBaseUrl).replace(/\/$/, '')
 
@@ -70,6 +78,9 @@ const request = async (path, options = {}) => {
     if (error.name === 'AbortError') {
       throw new Error('The request timed out.')
     }
+    if (error instanceof TypeError) {
+      throw new Error(`Cannot reach the backend at ${API_BASE_URL}. Start it with "npm run backend:serve" or use "npm run dev" to start both servers.`)
+    }
     throw error
   } finally {
     clearTimeout(timeoutId)
@@ -97,6 +108,14 @@ export const api = {
       body: JSON.stringify(credentials),
       timeoutMs: LOGIN_TIMEOUT_MS,
     })
+  },
+
+  loginStudent(student) {
+    return request('/auth/student-login', {
+      method: 'POST',
+      body: JSON.stringify(student),
+      timeoutMs: LOGIN_TIMEOUT_MS,
+    }).then(normalizeStudent)
   },
 
   createCourse(course) {

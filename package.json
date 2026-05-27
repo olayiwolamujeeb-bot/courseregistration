@@ -1,16 +1,17 @@
 {
   "name": "course-registration",
   "version": "1.0.0",
-  "description": "Course registration system powered by Laravel and MySQL",
+  "description": "Course registration system powered by Vue and a plain PHP API",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.js",
+    "frontend:dev": "vite",
     "build": "vite build",
-    "backend:serve": "C:\\xampp\\php\\php.exe -S 127.0.0.1:8000 backend/router.php",
-    "serve": "php backend-test\\artisan serve",
-    "migrate": "php backend-test\\artisan migrate",
-    "test": "php backend-test\\artisan test"
+    "backend:serve": "php -S 127.0.0.1:8000 backend/router.php",
+    "serve": "npm run backend:serve",
+    "backend:check": "php -l backend/api/db.php && php -l backend/api/env.php && php -l backend/api/index.php && php -l backend/api/store.php && php -l backend/router.php",
+    "test": "npm run backend:check && npm run build"
   },
   "dependencies": {
     "jspdf": "^3.0.3",
